@@ -45,11 +45,10 @@ Examples:
 
 ## hwaudit
 
-Sweep devices for more detailed info, see screenshot below. Stacks can also be
-included if desired to check stack members in ready state.
+Sweep Cisco devices for more detailed info, see screenshot below. 
 
 Useful for checking after power/cabing/upgrade works to check versions and PSU/FAN
-statuses.
+statuses. Quickly see if someone's knocked a power cable loose!
 
 See --help for full info. Filling out default strings in script will make life easier.
 
