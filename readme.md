@@ -1,4 +1,4 @@
-# Netscripts
+# NetScripts-Python
 
 This is a selection of bash-ported python scripts used for network
 support/engineering purposes. These were originally written many moons
