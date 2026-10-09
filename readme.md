@@ -6,6 +6,7 @@ ago but have been reviewed/refactored with GPT/Claude to fix some
 bugs and to add new features which has saved my aging brain some work.
 
 - sweepup:          Sweep uptime of devices + stack status if desired
+- hwaudit:          Sweep Serial numbers, Uptime and Fan/PSU Status
 
 Use at your own risk etc etc, no liability accepted.
 
@@ -42,3 +43,36 @@ Examples:
 
 ![sweepup](images/sweepup-html.png)
 
+## hwaudit
+
+Sweep devices for more detailed info, see screenshot below. Stacks can also be
+included if desired to check stack members in ready state.
+
+Useful for checking after power/cabing/upgrade works to check versions and PSU/FAN
+statuses.
+
+See --help for full info. Filling out default strings in script will make life easier.
+
+```text
+Examples:
+  hwaudit -c COMMUNITY \
+      --hosts host1.lab.local host2.lab.local
+
+  SNMP_COMMUNITY='COMMUNITY' \
+      hwaudit --host-file switches.txt
+
+  hwaudit -v 3 \
+      -u snmp-readonly \
+      -l authPriv \
+      -a SHA \
+      -A 'authentication-password' \
+      -x AES \
+      -X 'privacy-password' \
+      --hosts host1.lab.local
+
+  hwaudit -c COMMUNITY \
+      --no-color \
+      --host-file switches.txt > results.txt
+```
+
+![sweepup](images/hwaudit.png)
