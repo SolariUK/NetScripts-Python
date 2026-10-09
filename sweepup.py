@@ -458,7 +458,18 @@ def search_hosts_file(pattern, path):
 def parse_args(argv):
     p = argparse.ArgumentParser(
         prog="sweepup", description="Sweep devices for uptime (and Cisco StackWise state).",
-        epilog="Pass a single bare pattern to search /etc/hosts for matching devices.")
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Give a single bare pattern to search /etc/hosts (or --hosts-file) for matching devices.
+
+examples:
+  sweepup.py -v3 -l myfw01 myfw02 myfw03     SNMPv3 sweep of three devices
+  sweepup.py lonplcasw                       every /etc/hosts entry matching 'lonplcasw'
+  sweepup.py -f mylistofdevices.txt -s       devices from a file, with stack member state
+  sweepup.py -f devices.txt -e --html out.html   sysUpTime, plus an HTML table
+  sweepup.py -l sw1 sw2 --html - > sweep.html    HTML only, to stdout
+
+SNMPv3 credentials: SWEEPUP_V3_USER, _AUTH_PROTO, _AUTH_KEY, _PRIV_PROTO, _PRIV_KEY""")
     p.add_argument("pattern", nargs="?", help="regex to match against /etc/hosts entries")
     p.add_argument("-l", dest="hosts", nargs="+", metavar="HOST", default=[],
                    help="hostnames/IPs to poll")
@@ -561,3 +572,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+    
