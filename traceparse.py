@@ -4,8 +4,11 @@
 Resolve hops from Cisco/Juniper traceroute output.
 
 Resolution methods:
-    snmp - Query sysName.0 using SNMPv2c
     dns  - Perform a reverse DNS lookup
+    snmp - Query sysName.0 using SNMPv2c
+
+Lookups are performed concurrently, while output is displayed
+in the original traceroute order.
 """
 
 import argparse
@@ -16,6 +19,7 @@ import sys
 
 
 SYSNAME_OID = "1.3.6.1.2.1.1.5.0"
+MAX_CONCURRENT = 20
 
 
 #
@@ -52,9 +56,9 @@ def parse_arguments():
     parser.add_argument(
         "-m",
         "--method",
-        choices=("snmp", "dns"),
+        choices=("dns", "snmp"),
         default="dns",
-        help="resolution method (default: snmp)",
+        help="resolution method (default: dns)",
     )
 
     parser.add_argument(
@@ -98,7 +102,7 @@ def read_traceroute():
             line = input()
 
         except EOFError:
-            # Also allow Ctrl-D / redirected stdin to terminate input.
+            # Also allow Ctrl-D or redirected stdin to terminate input.
             break
 
         if not line.strip():
@@ -171,30 +175,39 @@ async def resolve_snmp(ip, community):
         if not var_binds:
             return "<no SNMP response>"
 
-        value = var_binds[0][1]
-
-        return str(value)
+        return str(var_binds[0][1])
 
     except Exception:
         return "<no SNMP response>"
 
 
-def resolve_dns_system(ip):
-    """Resolve an IP using the operating system's configured resolver."""
+def resolve_dns_system_sync(ip):
+    """Blocking system DNS lookup."""
 
     try:
         hostname, _, _ = socket.gethostbyaddr(ip)
         return hostname
 
-    except (socket.herror, socket.gaierror):
+    except (socket.herror, socket.gaierror, OSError):
         return "<unresolved>"
 
 
-def resolve_dns_server(ip, dns_server):
+async def resolve_dns_system(ip):
     """
-    Resolve an IP using a specifically requested DNS server.
+    Resolve an IP using the operating system's configured resolver.
 
-    This requires dnspython.
+    socket.gethostbyaddr() is blocking, so run it in a worker thread
+    rather than blocking the asyncio event loop.
+    """
+
+    return await asyncio.to_thread(resolve_dns_system_sync, ip)
+
+
+def resolve_dns_server_sync(ip, dns_server):
+    """
+    Blocking reverse lookup using a specifically requested DNS server.
+
+    Requires dnspython.
     """
 
     try:
@@ -211,7 +224,6 @@ def resolve_dns_server(ip, dns_server):
         resolver.lifetime = 2
 
         reverse_name = dns.reversename.from_address(ip)
-
         answer = resolver.resolve(reverse_name, "PTR")
 
         if not answer:
@@ -223,16 +235,37 @@ def resolve_dns_server(ip, dns_server):
         return "<unresolved>"
 
 
-async def resolve_hop(ip, args):
-    """Resolve a hop using the selected resolution method."""
+async def resolve_dns_server(ip, dns_server):
+    """
+    Resolve an IP using a specifically requested DNS server.
 
-    if args.method == "snmp":
-        return await resolve_snmp(ip, args.community)
+    dnspython's normal Resolver interface is blocking, so run the
+    request in a worker thread.
+    """
 
-    if args.dns_server:
-        return resolve_dns_server(ip, args.dns_server)
+    return await asyncio.to_thread(
+        resolve_dns_server_sync,
+        ip,
+        dns_server,
+    )
 
-    return resolve_dns_system(ip)
+
+async def resolve_hop(ip, args, semaphore):
+    """
+    Resolve one hop.
+
+    The semaphore limits the number of simultaneous lookups.
+    """
+
+    async with semaphore:
+
+        if args.method == "snmp":
+            return await resolve_snmp(ip, args.community)
+
+        if args.dns_server:
+            return await resolve_dns_server(ip, args.dns_server)
+
+        return await resolve_dns_system(ip)
 
 
 async def main():
@@ -261,24 +294,62 @@ async def main():
 
     traceroute_lines = read_traceroute()
 
-    print()
-    print("Checking...")
-    print()
+    #
+    # Build a list containing only traceroute lines which have
+    # an IPv4 hop address.
+    #
+    # Keeping line and hop together means we can perform all lookups
+    # concurrently while preserving the original display order.
+    #
+
+    hops = []
 
     for line in traceroute_lines:
 
         hop = find_ipv4(line)
 
-        #
-        # Ignore headers and other lines which don't contain
-        # an IPv4 address.
-        #
-
         if hop is None:
             continue
 
-        hopname = await resolve_hop(hop, args)
+        hops.append((line, hop))
 
+    print()
+    print("Checking...")
+    print()
+
+    if not hops:
+        return
+
+    #
+    # Limit the number of lookups running at the same time.
+    #
+
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+
+    #
+    # Create one asynchronous lookup for each hop.
+    #
+
+    tasks = [
+        resolve_hop(hop, args, semaphore)
+        for line, hop in hops
+    ]
+
+    #
+    # Run all lookups concurrently.
+    #
+    # asyncio.gather() returns the results in the same order as the
+    # tasks supplied to it, even if individual queries finish in a
+    # different order.
+    #
+
+    results = await asyncio.gather(*tasks)
+
+    #
+    # Display results in original traceroute order.
+    #
+
+    for (line, hop), hopname in zip(hops, results):
         print(f"{line} - {hopname}")
 
 
