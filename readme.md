@@ -7,6 +7,7 @@ bugs and to add new features which has saved my aging brain some work.
 
 - sweepup:          Sweep uptime of devices + stack status if desired
 - hwaudit:          Sweep Serial numbers, Uptime and Fan/PSU Status
+- traceparse:       Resolve hops from Cisco/Juniper traceroute output via SNMP/DNS
 
 Use at your own risk etc etc, no liability accepted.
 
@@ -75,3 +76,36 @@ Examples:
 ```
 
 ![sweepup](images/hwaudit.png)
+
+
+## traceparse
+
+Resolve hops in Cisco/Juniper traceroute output by snmp SysName.0 or
+via DNS.
+
+Handy for when name resolution isn't configured on network kit.
+
+Just paste your traceroute output in, and hit ENTER twice - 2 x empty
+lines start resolving.
+
+```text
+Usage: traceparse [options]
+
+Options:
+    -m METHOD       Resolution method: snmp or dns
+                    Default: snmp
+
+    -c COMMUNITY    SNMP v2c community string
+                    Default: public
+
+    -s DNS_SERVER   DNS server to use for reverse lookups.
+                    Only valid with '-m dns'.
+
+    -h              Display this help.
+
+Examples:
+    traceparse
+    traceparse -m snmp -c public
+    traceparse -m dns
+    traceparse -m dns -s 192.0.2.53
+```
