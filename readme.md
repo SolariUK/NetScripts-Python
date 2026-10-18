@@ -93,7 +93,7 @@ Usage: traceparse [options]
 
 Options:
     -m METHOD       Resolution method: snmp or dns
-                    Default: snmp
+                    Default: dns
 
     -c COMMUNITY    SNMP v2c community string
                     Default: public
